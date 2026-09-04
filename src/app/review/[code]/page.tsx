@@ -8,7 +8,7 @@ import { getReview, getSubmissions, isAssigned } from '@/lib/store';
 export default async function ReviewPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const reviewer = await currentReviewer();
-  if (!reviewer) redirect('/?error=link');
+  if (!reviewer) redirect('/?error=signin');
   if (!(await isAssigned(reviewer.id, code))) notFound();
   const submission = (await getSubmissions()).find((s) => s.code === code);
   if (!submission) notFound();

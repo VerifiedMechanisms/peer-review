@@ -5,7 +5,7 @@ import { getAssignments, getReviewers, getSubmissions, listReviews } from '@/lib
 export const dynamic = 'force-dynamic';
 
 export default async function Admin() {
-  if (!(await isAdmin())) redirect('/?error=link');
+  if (!(await isAdmin())) redirect('/?error=signin');
   const [reviewers, submissions, assignments, reviews] = await Promise.all([
     getReviewers(),
     getSubmissions(),

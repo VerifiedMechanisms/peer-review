@@ -32,7 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
         <footer className="mx-auto max-w-7xl px-4 py-8 text-xs text-zinc-500">
-          Questions: hiring@verifiedmechanisms.ai. Problems with this site: open an issue on GitHub.
+          Questions: hiring@verifiedmechanisms.ai. Problems with this site:{' '}
+          <a href={ISSUES_URL} className="underline hover:text-zinc-900" target="_blank" rel="noreferrer">
+            open an issue on GitHub
+          </a>
+          .
         </footer>
       </body>
     </html>

@@ -10,21 +10,38 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ e
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-10">
       <h1 className="text-2xl font-semibold">Peer review of the take-home submissions</h1>
-      {error === 'link' && (
+      {error === 'signin' && (
+        <p className="rounded-md border border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-800">
+          Please sign in with your token first.
+        </p>
+      )}
+      {error === 'token' && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          That link is not valid. Use the personal link from your invitation email, or write to
-          hiring@verifiedmechanisms.ai if it does not work.
+          That token is not recognised. Check for missing characters, or write to
+          hiring@verifiedmechanisms.ai.
         </p>
       )}
       <p className="text-zinc-700">
-        Reviewers reach their assigned submissions through a personal link sent by email. There is no
-        password: the link is the login, so please do not forward it.
+        Reviewers receive a personal token by email. Paste it here to sign in. The token is your
+        login, so please do not share it.
       </p>
-      <ul className="list-disc space-y-1 pl-6 text-zinc-700">
-        <li>Submissions are identified by a code such as RS-07. Names, emails and repository links have been removed.</li>
-        <li>Your review is seen only by the hiring team. Authors never learn who reviewed them.</li>
-        <li>Drafts save automatically. You can edit a submitted review until the deadline.</li>
-      </ul>
+      <form method="post" action="/r" className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="text"
+          name="token"
+          required
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Paste your token"
+          className="flex-1 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-zinc-500 focus:outline-none"
+        />
+        <button
+          type="submit"
+          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+        >
+          Sign in
+        </button>
+      </form>
     </div>
   );
 }

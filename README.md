@@ -10,8 +10,8 @@ Feature requests and bug reports are welcome as [GitHub issues](../../issues/new
 
 - Next.js on Vercel. One private Vercel Blob store holds the redacted PDFs, the reviewer
   roster, the assignments and one JSON file per review. There is no database.
-- No accounts. A reviewer's link `/r/<token>` sets a cookie; `/a/<ADMIN_TOKEN>` does the same
-  for the admin view at `/admin`, which shows progress and exports all reviews as CSV or JSON.
+- No accounts. A reviewer pastes the token from their email into the box on the front page,
+  which sets a cookie; the admin token works in the same box. Tokens never appear in URLs.
 - The app never learns who wrote a submission. The code-to-author mapping is kept elsewhere.
 - The questionnaire lives in `src/lib/questionnaire.ts`, one section list per track.
 

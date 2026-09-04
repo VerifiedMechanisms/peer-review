@@ -7,7 +7,7 @@ import { DEADLINE } from '@/lib/config';
 
 export default async function ReviewHome() {
   const reviewer = await currentReviewer();
-  if (!reviewer) redirect('/?error=link');
+  if (!reviewer) redirect('/?error=signin');
   const mine = (await getAssignments()).filter((a) => a.reviewerId === reviewer.id);
   const reviews = await Promise.all(mine.map((a) => getReview(reviewer.id, a.code)));
 
@@ -20,6 +20,12 @@ export default async function ReviewHome() {
           {reviewer.role === 'RS' ? 'Research Scientist' : 'Research Engineer'} track. Reviews are due by {DEADLINE}.
         </p>
       </div>
+
+      <ul className="list-disc space-y-1 pl-6 text-sm text-zinc-700">
+        <li>Submissions are identified by a code such as RS-07. Names, emails and repository links have been removed.</li>
+        <li>Your review is seen only by the hiring team. Authors never learn who reviewed them.</li>
+        <li>Drafts save automatically. You can edit a submitted review until the deadline.</li>
+      </ul>
 
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
         {mine.map((a, i) => {
