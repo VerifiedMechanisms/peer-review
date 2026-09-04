@@ -9,7 +9,7 @@
 // The seed file and the PDF directory live outside this repository.
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { put, list } from '@vercel/blob';
+import { put } from '@vercel/blob';
 
 const [seedPath, pdfDir, zipDir] = process.argv.slice(2);
 if (!seedPath) {
@@ -64,5 +64,6 @@ if (zipDir) {
   console.log(`data/code.json  ${files.length} zips`);
 }
 
-const { blobs } = await list({ prefix: 'pdfs/' });
-console.log(`store now holds ${blobs.length} PDFs`);
+// No closing list() of the store: Blob listing was taking a minute or more on
+// 4 Sep 2026 and made this script look hung after every upload had finished.
+console.log('done');
