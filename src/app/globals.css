@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -12,15 +13,23 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Markdown preview in the review editor */
+.md-preview > * + * { margin-top: 0.5rem; }
+.md-preview p { margin: 0; }
+.md-preview ul { list-style: disc; padding-left: 1.25rem; }
+.md-preview ol { list-style: decimal; padding-left: 1.25rem; }
+.md-preview code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: #f4f4f5; padding: 0 0.25rem; border-radius: 0.25rem; }
+.md-preview pre { background: #f4f4f5; padding: 0.5rem; border-radius: 0.375rem; overflow-x: auto; }
+.md-preview pre code { background: none; padding: 0; }
+.md-preview table { border-collapse: collapse; }
+.md-preview th, .md-preview td { border: 1px solid #e4e4e7; padding: 0.25rem 0.5rem; }
+.md-preview blockquote { border-left: 3px solid #d4d4d8; padding-left: 0.75rem; color: #52525b; }
+.md-preview h1, .md-preview h2, .md-preview h3 { font-weight: 600; }
