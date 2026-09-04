@@ -18,7 +18,9 @@ export default async function ReviewHome() {
         <p className="mt-4 text-zinc-600">
           You have {mine.length} {mine.length === 1 ? 'submission' : 'submissions'} to review for the{' '}
           {reviewer.role === 'RS' ? 'Research Scientist' : 'Research Engineer'} track. Please keep an eye on this
-          page, it is possible you may be assigned more submissions in the future, up to a maximum of {MAX_REVIEWS}.
+          page, as you may be assigned more submissions in the future, up to a maximum of {MAX_REVIEWS}. If this list
+          ever differs from the one in your email, please go by the list shown here, as it is the one we keep up to
+          date.
         </p>
       </div>
 
