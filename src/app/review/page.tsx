@@ -72,6 +72,10 @@ export default async function ReviewHome() {
             We recommend completing the reviews serially, submitting each review as soon as you finish it rather than
             working on multiple reviews in parallel. This will help us process the reviews more efficiently.
           </li>
+          <li>
+            For each detailed-answer section, aim for approximately 150–200 words in total, covering 3–4 substantive
+            points.
+          </li>
         </ul>
       </section>
     </div>
