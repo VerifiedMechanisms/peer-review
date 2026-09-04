@@ -16,8 +16,13 @@ if (!seedPath) {
   console.error('usage: node --env-file=.env.local scripts/seed.mjs <seed.json> [<pdf dir>]');
   process.exit(2);
 }
-if (!process.env.BLOB_READ_WRITE_TOKEN) {
-  console.error('BLOB_READ_WRITE_TOKEN is not set (pass --env-file=.env.local)');
+// A private store connected through the dashboard gives BLOB_STORE_ID and an
+// OIDC token (VERCEL_OIDC_TOKEN from `vercel env pull`) rather than a
+// read-write token; the SDK accepts either.
+const oidc = process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN;
+if (!process.env.BLOB_READ_WRITE_TOKEN && !oidc) {
+  console.error('no Blob credentials: need BLOB_READ_WRITE_TOKEN, or BLOB_STORE_ID plus '
+    + 'VERCEL_OIDC_TOKEN (run `vercel env pull .env.local`, then pass --env-file=.env.local)');
   process.exit(2);
 }
 const seed = JSON.parse(await readFile(seedPath, 'utf8'));
