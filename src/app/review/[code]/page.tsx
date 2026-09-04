@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import ReviewForm from '@/components/ReviewForm';
 import { currentReviewer } from '@/lib/auth';
 import { DEADLINE } from '@/lib/config';
-import { getReview, getSubmissions, isAssigned } from '@/lib/store';
+import { getCodeManifest, getReview, getSubmissions, isAssigned } from '@/lib/store';
 
 export default async function ReviewPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
@@ -13,23 +13,24 @@ export default async function ReviewPage({ params }: { params: Promise<{ code: s
   const submission = (await getSubmissions()).find((s) => s.code === code);
   if (!submission) notFound();
   const review = await getReview(reviewer.id, code);
+  const codeZip = (await getCodeManifest())[code];
   const track = submission.role === 'RS' ? 'Research Scientist' : 'Research Engineer';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <nav className="text-sm text-zinc-500">
-        <Link href="/review" className="hover:underline">My reviews</Link> <span className="mx-1">/</span> {code}
-      </nav>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <Link href="/review" className="text-blue-700 hover:underline">
+          &larr; Back to my reviews
+        </Link>
+        <div id="save-status" className="text-xs text-zinc-500" />
+      </div>
 
       {/* OpenReview-style submission header */}
       <header className="rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Submission {code}</h1>
-            <p className="mt-1 text-sm text-zinc-600">
-              Anonymous author <span className="mx-1 text-zinc-300">|</span> {track} take-home
-              <span className="mx-1 text-zinc-300">|</span> Reviews due {DEADLINE}
-            </p>
+            <p className="mt-1 text-sm text-zinc-600">Reviews due {DEADLINE}</p>
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -44,23 +45,38 @@ export default async function ReviewPage({ params }: { params: Promise<{ code: s
               </svg>
               PDF
             </a>
-            <a href={`/api/pdf/${code}?download=1`} className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50">
-              Download
-            </a>
+            {codeZip && (
+              <a
+                href={`/api/code/${code}`}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+                title="Anonymized snapshot of the submitted repository, as a zip"
+              >
+                Code ({codeZip >= 1024 * 1024 ? `${(codeZip / 1024 / 1024).toFixed(0)} MB` : `${Math.ceil(codeZip / 1024)} KB`})
+              </a>
+            )}
           </div>
         </div>
         <dl className="mt-4 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
           <dt className="text-zinc-500">Track</dt>
           <dd>{track}</dd>
-          <dt className="text-zinc-500">What was asked</dt>
-          <dd className="text-zinc-700">
-            {submission.role === 'RS'
-              ? 'Part one: read an autoresearch run of about 200 theorems on head complexity and pick out what matters. Part two: results of their own, with bonus credit for building on Part one or verifying in Lean.'
-              : 'Part one: make Qwen and GPT-OSS collaborate to solve and prove competition problems in Lean 4. Part two: show whether the pair beats either model alone, and where one fills the other’s gaps.'}
-          </dd>
-          <dt className="text-zinc-500">Anonymization</dt>
-          <dd className="text-zinc-700">Names, emails, repository links and metadata were removed. Do not try to identify the author.</dd>
         </dl>
+        {submission.role === 'RE' && (
+          <ul className="mt-4 list-disc space-y-1 border-t border-zinc-200 pl-5 pt-3 text-sm text-zinc-700">
+            <li>
+              The submission materials are available in two places: the PDF tab contains the write-up, while the Code
+              tab contains the submitted repository.
+            </li>
+            <li>
+              For the review, the primary expectation is to assess the submission based on the write-up and an
+              inspection of the code.
+            </li>
+            <li>
+              You are not required to rerun the experiments. However, if you would find it useful to do so, you may use
+              the API key from your own take-home submission. Unfortunately, we are not able to provide access to the
+              holdout set since it is under construction.
+            </li>
+          </ul>
+        )}
       </header>
 
       <section>

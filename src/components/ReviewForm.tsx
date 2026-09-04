@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { questionnaire, type Question, type Track } from '@/lib/questionnaire';
 import type { Review } from '@/lib/store';
 import MarkdownEditor from './MarkdownEditor';
@@ -18,6 +19,15 @@ export default function ReviewForm({ track, code, initial }: { track: Track; cod
   const [missing, setMissing] = useState<string[]>([]);
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The save status is shown in the page header, top right, outside this box.
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setStatusSlot(document.getElementById('save-status')), []);
+  const statusText =
+    status === 'submitted'
+      ? `Submitted ${submittedAt ? new Date(submittedAt).toLocaleString('en-GB') : ''}`
+      : savedAt
+        ? `Draft saved ${new Date(savedAt).toLocaleString('en-GB')}`
+        : 'Drafts save automatically';
 
   const save = useCallback(
     async (next: 'draft' | 'submitted', current: Answers) => {
@@ -97,30 +107,24 @@ export default function ReviewForm({ track, code, initial }: { track: Track; cod
         void submit();
       }}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-zinc-600">
-          {status === 'submitted' ? (
-            <>Submitted {submittedAt ? new Date(submittedAt).toLocaleString('en-GB') : ''}</>
-          ) : savedAt ? (
-            <>Draft saved {new Date(savedAt).toLocaleString('en-GB')}</>
-          ) : (
-            'Drafts save automatically'
-          )}
-        </span>
-        {locked ? (
+      {statusSlot && createPortal(<span>{statusText}</span>, statusSlot)}
+      {locked && (
+        <div className="flex justify-end text-sm">
           <button type="button" className="text-blue-700 hover:underline" onClick={() => setLocked(false)}>
             Edit review
           </button>
-        ) : null}
-      </div>
+        </div>
+      )}
 
       <fieldset disabled={locked} className="space-y-8 disabled:opacity-70">
-        {sections.map((s) => (
-          <section key={s.title} className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">{s.title}</h2>
-              {s.intro && <p className="mt-1 text-sm text-zinc-600">{s.intro}</p>}
-            </div>
+        {sections.map((s, i) => (
+          <section key={i} className="flex flex-col gap-6">
+            {(s.title || s.intro) && (
+              <div>
+                {s.title && <h2 className="text-lg font-semibold">{s.title}</h2>}
+                {s.intro && <p className="mt-1 text-sm text-zinc-600">{s.intro}</p>}
+              </div>
+            )}
             {s.questions.map((q) => (
               <Field key={q.id} q={q} value={answers[q.id]} onChange={(v) => set(q.id, v)} invalid={missing.includes(q.id)} />
             ))}
@@ -161,7 +165,13 @@ export default function ReviewForm({ track, code, initial }: { track: Track; cod
 }
 
 function Field({ q, value, onChange, invalid }: { q: Question; value: string | number | undefined; onChange: (v: string | number) => void; invalid: boolean }) {
-  const frame = `space-y-2 rounded-md p-2 -m-2 ${invalid ? 'ring-2 ring-amber-400' : ''}`;
+  const frame = `space-y-2 rounded-md ${invalid ? 'ring-2 ring-amber-400 ring-offset-4' : ''}`;
+  const clear =
+    value !== undefined && value !== '' ? (
+      <button type="button" onClick={() => onChange('')} className="text-xs text-zinc-500 hover:text-zinc-900 hover:underline">
+        Clear selection
+      </button>
+    ) : null;
   // text answers are Markdown; scales and choices stay as buttons
   const label = (
     <label className="block text-sm font-medium text-zinc-900">
@@ -185,6 +195,7 @@ function Field({ q, value, onChange, invalid }: { q: Question; value: string | n
           </div>
           <span className="w-28 text-right text-xs text-zinc-500">{q.high}</span>
         </div>
+        {clear}
       </div>
     );
   }
@@ -192,14 +203,15 @@ function Field({ q, value, onChange, invalid }: { q: Question; value: string | n
     return (
       <div className={frame}>
         {label}
-        <div className="flex flex-wrap gap-2">
+        <div className={q.layout === 'column' ? 'flex flex-col items-start gap-2' : 'flex flex-wrap gap-2'}>
           {q.options.map((o) => (
-            <label key={o} className={`cursor-pointer rounded-md border px-3 py-1.5 text-sm ${value === o ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 hover:bg-zinc-100'}`}>
+            <label key={o} className={`cursor-pointer rounded-md border px-3 py-1.5 text-[13px] leading-snug ${value === o ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 hover:bg-zinc-100'}`}>
               <input type="radio" name={q.id} value={o} checked={value === o} onChange={() => onChange(o)} className="sr-only" />
               {o}
             </label>
           ))}
         </div>
+        {clear}
       </div>
     );
   }

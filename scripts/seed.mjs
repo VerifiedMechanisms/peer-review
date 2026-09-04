@@ -2,7 +2,7 @@
 // Upload the reviewer roster, submissions, assignments and redacted PDFs to the
 // private Blob store. Run from the project root with the Blob token in the env:
 //
-//   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>]
+//   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>] [<dir with CODE.zip files>]
 //
 // seed.json: { reviewers: [{id,name,email,role,token}], submissions: [{code,role}],
 //              assignments: [{reviewerId,code}] }
@@ -11,9 +11,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { put, list } from '@vercel/blob';
 
-const [seedPath, pdfDir] = process.argv.slice(2);
+const [seedPath, pdfDir, zipDir] = process.argv.slice(2);
 if (!seedPath) {
-  console.error('usage: node --env-file=.env.local scripts/seed.mjs <seed.json> [<pdf dir>]');
+  console.error('usage: node --env-file=.env.local scripts/seed.mjs <seed.json> [<pdf dir>] [<zip dir>]');
   process.exit(2);
 }
 // A private store connected through the dashboard gives BLOB_STORE_ID and an
@@ -47,6 +47,21 @@ if (pdfDir) {
     await put(`pdfs/${f}`, body, { ...opts, contentType: 'application/pdf' });
     console.log(`pdfs/${f}  ${(body.length / 1024).toFixed(0)} KB`);
   }
+}
+
+if (zipDir) {
+  // Code snapshots: one zip per code that has one; data/code.json lists them with sizes.
+  const codes = new Set(seed.submissions.map((s) => s.code));
+  const files = (await readdir(zipDir)).filter((f) => f.endsWith('.zip') && codes.has(f.slice(0, -4)));
+  const manifest = {};
+  for (const f of files) {
+    const body = await readFile(join(zipDir, f));
+    await put(`code/${f}`, body, { ...opts, contentType: 'application/zip' });
+    manifest[f.slice(0, -4)] = body.length;
+    console.log(`code/${f}  ${(body.length / 1024).toFixed(0)} KB`);
+  }
+  await put('data/code.json', JSON.stringify(manifest, null, 1), { ...opts, contentType: 'application/json' });
+  console.log(`data/code.json  ${files.length} zips`);
 }
 
 const { blobs } = await list({ prefix: 'pdfs/' });

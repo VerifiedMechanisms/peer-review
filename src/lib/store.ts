@@ -1,7 +1,7 @@
 // Storage: one private Vercel Blob store. Small JSON records plus the redacted
 // PDFs. The app never sees author identities: submissions are codes only, and
 // the code-to-author mapping lives outside this repository.
-import { get, list, put } from '@vercel/blob';
+import { get, put } from '@vercel/blob';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
@@ -101,16 +101,33 @@ export async function listReviews(): Promise<Review[]> {
     }
     return out;
   }
-  let cursor: string | undefined;
-  do {
-    const page = await list({ prefix: 'reviews/', cursor, limit: 1000 });
-    for (const b of page.blobs) {
-      const r = await readJson<Review>(b.pathname);
-      if (r) out.push(r);
+  // Listing the reviews/ prefix with Blob `list()` took a minute or more on
+  // 4 Sep 2026 while single reads returned in under half a second, so read the
+  // record for every current assignment directly instead. A review can only
+  // exist at reviews/<reviewerId>/<code>.json, so nothing shown is lost.
+  const assignments = await getAssignments();
+  const found = await Promise.all(assignments.map((a) => getReview(a.reviewerId, a.code)));
+  return found.filter((r): r is Review => r !== null);
+}
+
+// Anonymized code snapshots exist only for some submissions (the RE track);
+// data/code.json maps code -> zip size in bytes for the ones that have one.
+export async function getCodeManifest(): Promise<Record<string, number>> {
+  return (await readJson<Record<string, number>>('data/code.json')) ?? {};
+}
+
+export async function getCodeZip(code: string): Promise<{ stream: ReadableStream<Uint8Array>; blob: { size: number } } | null> {
+  if (LOCAL) {
+    try {
+      const buf = await readFile(join(LOCAL, `code/${code}.zip`));
+      return { stream: new Blob([buf]).stream(), blob: { size: buf.length } };
+    } catch {
+      return null;
     }
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-  return out;
+  }
+  const res = await get(`code/${code}.zip`, PRIVATE);
+  if (!res || res.statusCode !== 200) return null;
+  return res;
 }
 
 export async function getPdf(code: string): Promise<{ stream: ReadableStream<Uint8Array>; blob: { size: number } } | null> {
