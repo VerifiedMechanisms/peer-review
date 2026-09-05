@@ -116,6 +116,7 @@ function TrackSection({
       <ul className="grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {reviewers.map((r) => {
           const n = assignments.filter((a) => a.reviewerId === r.id).length;
+          if (n === 0) return null; // reviewers in the roster with nothing assigned would show as 0/0
           const done = rows.filter((x) => x.reviewerId === r.id && x.review?.status === 'submitted').length;
           return (
             <li key={r.id} className="rounded-md border border-zinc-200 bg-white px-3 py-2">
