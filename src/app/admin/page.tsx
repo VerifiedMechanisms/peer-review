@@ -9,14 +9,50 @@ type Row = Assignment & { reviewer?: Reviewer; review?: Review };
 // the table shows the word for the overall verdict and the number for the scales.
 const verdict = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
 const score = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
+
+// Sorting: ?sort=<column>&dir=asc|desc. Score columns default to highest first, the
+// text columns to A-Z; rows without a value sort last either way.
+const SORT_KEYS = ['code', 'name', 'reviewer', 'status', 'overall', 'quality', 'clarity', 'originality'] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const SCORE_KEYS: SortKey[] = ['overall', 'quality', 'clarity', 'originality'];
+const VERDICT_RANK: Record<string, number> = { Excellent: 3, Good: 2, Satisfactory: 1 };
+const STATUS_RANK: Record<string, number> = { submitted: 2, draft: 1 };
+
+function sortRows(rows: Row[], key: SortKey, dir: 'asc' | 'desc', authors: Record<string, string>): Row[] {
+  const num = (r: Row): number | null => {
+    const a = r.review?.answers ?? {};
+    if (key === 'overall') return VERDICT_RANK[verdict(a.overall_score)] ?? null;
+    if (key === 'status') return STATUS_RANK[r.review?.status ?? ''] ?? 0;
+    const v = score(a[key]);
+    return v === '' ? null : Number(v);
+  };
+  const text = (r: Row): string =>
+    key === 'code' ? r.code : key === 'name' ? (authors[r.code] ?? '') : (r.reviewer?.name ?? r.reviewerId);
+  const sign = dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((x, y) => {
+    if (SCORE_KEYS.includes(key) || key === 'status') {
+      const a = num(x), b = num(y);
+      if (a === null && b === null) return x.code.localeCompare(y.code);
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return sign * (a - b) || x.code.localeCompare(y.code);
+    }
+    return sign * text(x).localeCompare(text(y)) || x.code.localeCompare(y.code);
+  });
+}
 const key = (rid: string, code: string) => `${rid}/${code}`;
 const TRACKS = [
   { role: 'RS', title: 'Research Scientist' },
   { role: 'RE', title: 'Research Engineer' },
 ] as const;
 
-export default async function Admin() {
+export default async function Admin({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!(await isAdmin())) redirect('/?error=signin');
+  const sp = await searchParams;
+  const sortParam = typeof sp.sort === 'string' ? sp.sort : '';
+  const sortKey: SortKey = (SORT_KEYS as readonly string[]).includes(sortParam) ? (sortParam as SortKey) : 'code';
+  const defaultDir: 'asc' | 'desc' = SCORE_KEYS.includes(sortKey) || sortKey === 'status' ? 'desc' : 'asc';
+  const dir: 'asc' | 'desc' = sp.dir === 'asc' || sp.dir === 'desc' ? sp.dir : defaultDir;
   const [reviewers, submissions, assignments, reviews, authors] = await Promise.all([
     getReviewers(),
     getSubmissions(),
@@ -54,6 +90,8 @@ export default async function Admin() {
           reviewers={reviewers.filter((r) => r.role === t.role)}
           assignments={assignments}
           authors={authors}
+          sortKey={sortKey}
+          dir={dir}
         />
       ))}
     </div>
@@ -67,6 +105,8 @@ function TrackSection({
   reviewers,
   assignments,
   authors,
+  sortKey,
+  dir,
 }: {
   title: string;
   rows: Row[];
@@ -74,7 +114,23 @@ function TrackSection({
   reviewers: Reviewer[];
   assignments: Assignment[];
   authors: Record<string, string>;
+  sortKey: SortKey;
+  dir: 'asc' | 'desc';
 }) {
+  const sorted = sortRows(rows, sortKey, dir, authors);
+  // Clicking the active column flips the direction; any other column starts from its default.
+  const Head = ({ k, label }: { k: SortKey; label: string }) => {
+    const active = k === sortKey;
+    const nextDir = active ? (dir === 'asc' ? 'desc' : 'asc') : SCORE_KEYS.includes(k) || k === 'status' ? 'desc' : 'asc';
+    return (
+      <th className="px-3 py-2">
+        <a className={active ? 'text-zinc-900 hover:underline' : 'hover:underline'} href={`/admin?sort=${k}&dir=${nextDir}`}>
+          {label}
+          {active && <span aria-hidden="true">{dir === 'asc' ? ' \u25B4' : ' \u25BE'}</span>}
+        </a>
+      </th>
+    );
+  };
   const submitted = rows.filter((r) => r.review?.status === 'submitted').length;
   const drafts = rows.filter((r) => r.review?.status === 'draft').length;
   const unassigned = submissions.filter((s) => !assignments.some((a) => a.code === s.code));
@@ -91,21 +147,21 @@ function TrackSection({
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
-              <th className="px-3 py-2">Code</th>
-              <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Reviewer</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Overall</th>
-              <th className="px-3 py-2">Quality</th>
-              <th className="px-3 py-2">Clarity</th>
-              <th className="px-3 py-2">Originality</th>
+              <Head k="code" label="Code" />
+              <Head k="name" label="Name" />
+              <Head k="reviewer" label="Reviewer" />
+              <Head k="status" label="Status" />
+              <Head k="overall" label="Overall" />
+              <Head k="quality" label="Quality" />
+              <Head k="clarity" label="Clarity" />
+              <Head k="originality" label="Originality" />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {rows.map((r) => (
+            {sorted.map((r) => (
               <tr key={key(r.reviewerId, r.code)}>
                 <td className="px-3 py-2 font-medium">
-                  <a className="text-blue-700 hover:underline" href={`/api/pdf/${r.code}`} target="_blank" rel="noreferrer">{r.code}</a>
+                  <a className="text-blue-700 hover:underline" href={`/api/pdf/${r.code}`}>{r.code}</a>
                 </td>
                 <td className="px-3 py-2">{authors[r.code] ?? ''}</td>
                 <td className="px-3 py-2">{r.reviewer?.name ?? r.reviewerId}</td>
