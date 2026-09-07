@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { isAdmin } from '@/lib/auth';
-import { getAssignments, getReviewers, getSubmissions, listReviews, type Assignment, type Review, type Reviewer, type Submission } from '@/lib/store';
+import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Assignment, type Review, type Reviewer, type Submission } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +13,12 @@ const TRACKS = [
 
 export default async function Admin() {
   if (!(await isAdmin())) redirect('/?error=signin');
-  const [reviewers, submissions, assignments, reviews] = await Promise.all([
+  const [reviewers, submissions, assignments, reviews, authors] = await Promise.all([
     getReviewers(),
     getSubmissions(),
     getAssignments(),
     listReviews(),
+    getAuthors(),
   ]);
   const byReviewer = new Map(reviewers.map((r) => [r.id, r]));
   const byKey = new Map(reviews.map((r) => [key(r.reviewerId, r.code), r]));
@@ -48,6 +49,7 @@ export default async function Admin() {
           submissions={submissions.filter((s) => s.role === t.role)}
           reviewers={reviewers.filter((r) => r.role === t.role)}
           assignments={assignments}
+          authors={authors}
         />
       ))}
     </div>
@@ -60,12 +62,14 @@ function TrackSection({
   submissions,
   reviewers,
   assignments,
+  authors,
 }: {
   title: string;
   rows: Row[];
   submissions: Submission[];
   reviewers: Reviewer[];
   assignments: Assignment[];
+  authors: Record<string, string>;
 }) {
   const submitted = rows.filter((r) => r.review?.status === 'submitted').length;
   const drafts = rows.filter((r) => r.review?.status === 'draft').length;
@@ -84,6 +88,7 @@ function TrackSection({
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-3 py-2">Code</th>
+              <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Reviewer</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Overall</th>
@@ -97,8 +102,17 @@ function TrackSection({
                 <td className="px-3 py-2 font-medium">
                   <a className="text-blue-700 hover:underline" href={`/api/pdf/${r.code}`} target="_blank" rel="noreferrer">{r.code}</a>
                 </td>
+                <td className="px-3 py-2">{authors[r.code] ?? ''}</td>
                 <td className="px-3 py-2">{r.reviewer?.name ?? r.reviewerId}</td>
-                <td className="px-3 py-2">{r.review?.status ?? 'not started'}</td>
+                <td className="px-3 py-2">
+                  {r.review ? (
+                    <a className="text-blue-700 hover:underline" href={`/admin/review/${r.code}/${r.reviewerId}`}>
+                      {r.review.status}
+                    </a>
+                  ) : (
+                    'not started'
+                  )}
+                </td>
                 <td className="px-3 py-2">{r.review?.answers.overall_score ?? ''}</td>
                 <td className="px-3 py-2">{r.review?.answers.quality ?? ''}</td>
                 <td className="px-3 py-2 text-zinc-500">{r.review?.updatedAt ? new Date(r.review.updatedAt).toLocaleString('en-GB') : ''}</td>
@@ -106,7 +120,7 @@ function TrackSection({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-zinc-500" colSpan={6}>No assignments yet.</td>
+                <td className="px-3 py-3 text-zinc-500" colSpan={7}>No assignments yet.</td>
               </tr>
             )}
           </tbody>

@@ -5,7 +5,8 @@
 //   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>] [<dir with CODE.zip files>]
 //
 // seed.json: { reviewers: [{id,name,email,role,token}], submissions: [{code,role}],
-//              assignments: [{reviewerId,code}] }
+//              assignments: [{reviewerId,code}], authors: {code: name} }
+// authors is read only by the admin pages (data/authors.json); reviewers never see it.
 // The seed file and the PDF directory live outside this repository.
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -35,6 +36,11 @@ for (const [name, data] of [
 ]) {
   await put(`data/${name}.json`, JSON.stringify(data, null, 1), { ...opts, contentType: 'application/json' });
   console.log(`data/${name}.json  ${data.length} rows`);
+}
+
+if (seed.authors) {
+  await put('data/authors.json', JSON.stringify(seed.authors, null, 1), { ...opts, contentType: 'application/json' });
+  console.log(`data/authors.json  ${Object.keys(seed.authors).length} codes (admin only)`);
 }
 
 if (pdfDir) {

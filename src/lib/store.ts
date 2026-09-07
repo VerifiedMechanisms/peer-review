@@ -110,6 +110,12 @@ export async function listReviews(): Promise<Review[]> {
   return found.filter((r): r is Review => r !== null);
 }
 
+// Code -> author name, for the admin pages only (added 7 Sep 2026). Reviewers never
+// receive it: nothing outside src/app/admin reads this file.
+export async function getAuthors(): Promise<Record<string, string>> {
+  return (await readJson<Record<string, string>>('data/authors.json')) ?? {};
+}
+
 // Anonymized code snapshots exist only for some submissions (the RE track);
 // data/code.json maps code -> zip size in bytes for the ones that have one.
 export async function getCodeManifest(): Promise<Record<string, number>> {

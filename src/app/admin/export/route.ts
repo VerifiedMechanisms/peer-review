@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       code: r.code,
       role: r.role,
       reviewer: byId.get(r.reviewerId)?.name ?? r.reviewerId,
+      reviewer_id: r.reviewerId,
       reviewer_email: byId.get(r.reviewerId)?.email ?? '',
       status: r.status,
       submittedAt: r.submittedAt ?? '',
@@ -32,10 +33,10 @@ export async function GET(req: NextRequest) {
     });
   }
   const qids = Array.from(new Set([...allQuestions('RS'), ...allQuestions('RE')].map((q) => q.id)));
-  const head = ['code', 'role', 'reviewer', 'reviewer_email', 'status', 'submittedAt', 'updatedAt', ...qids];
+  const head = ['code', 'role', 'reviewer', 'reviewer_id', 'reviewer_email', 'status', 'submittedAt', 'updatedAt', ...qids];
   const lines = [head.join(',')];
   for (const r of rows) {
-    lines.push([r.code, r.role, r.reviewer, r.reviewer_email, r.status, r.submittedAt, r.updatedAt, ...qids.map((q) => r.answers[q])].map(csvCell).join(','));
+    lines.push([r.code, r.role, r.reviewer, r.reviewer_id, r.reviewer_email, r.status, r.submittedAt, r.updatedAt, ...qids.map((q) => r.answers[q])].map(csvCell).join(','));
   }
   return new Response(lines.join('\r\n'), {
     headers: {
