@@ -5,6 +5,10 @@ import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, 
 export const dynamic = 'force-dynamic';
 
 type Row = Assignment & { reviewer?: Reviewer; review?: Review };
+// Answers are stored as the option text ("Good: Answers the task, ..." and "3: good");
+// the table shows the word for the overall verdict and the number for the scales.
+const verdict = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
+const score = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
 const key = (rid: string, code: string) => `${rid}/${code}`;
 const TRACKS = [
   { role: 'RS', title: 'Research Scientist' },
@@ -93,7 +97,8 @@ function TrackSection({
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Overall</th>
               <th className="px-3 py-2">Quality</th>
-              <th className="px-3 py-2">Updated</th>
+              <th className="px-3 py-2">Clarity</th>
+              <th className="px-3 py-2">Originality</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -113,14 +118,15 @@ function TrackSection({
                     'not started'
                   )}
                 </td>
-                <td className="px-3 py-2">{r.review?.answers.overall_score ?? ''}</td>
-                <td className="px-3 py-2">{r.review?.answers.quality ?? ''}</td>
-                <td className="px-3 py-2 text-zinc-500">{r.review?.updatedAt ? new Date(r.review.updatedAt).toLocaleString('en-GB') : ''}</td>
+                <td className="px-3 py-2">{verdict(r.review?.answers.overall_score)}</td>
+                <td className="px-3 py-2">{score(r.review?.answers.quality)}</td>
+                <td className="px-3 py-2">{score(r.review?.answers.clarity)}</td>
+                <td className="px-3 py-2">{score(r.review?.answers.originality)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-zinc-500" colSpan={7}>No assignments yet.</td>
+                <td className="px-3 py-3 text-zinc-500" colSpan={8}>No assignments yet.</td>
               </tr>
             )}
           </tbody>
