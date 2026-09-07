@@ -150,6 +150,21 @@ export async function getPdf(code: string): Promise<{ stream: ReadableStream<Uin
   return res;
 }
 
+// The author's CV (cv/<CODE>.pdf), admin-only like data/authors.json.
+export async function getCv(code: string): Promise<{ stream: ReadableStream<Uint8Array>; blob: { size: number } } | null> {
+  if (LOCAL) {
+    try {
+      const buf = await readFile(join(LOCAL, `cv/${code}.pdf`));
+      return { stream: new Blob([buf]).stream(), blob: { size: buf.length } };
+    } catch {
+      return null;
+    }
+  }
+  const res = await get(`cv/${code}.pdf`, PRIVATE);
+  if (!res || res.statusCode !== 200) return null;
+  return res;
+}
+
 export async function isAssigned(reviewerId: string, code: string): Promise<boolean> {
   const a = await getAssignments();
   return a.some((x) => x.reviewerId === reviewerId && x.code === code);

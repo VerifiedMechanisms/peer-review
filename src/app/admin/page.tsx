@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Overlay from '@/components/Overlay';
 import { isAdmin } from '@/lib/auth';
 import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Assignment, type Review, type Reviewer, type Submission } from '@/lib/store';
 
@@ -161,15 +162,25 @@ function TrackSection({
             {sorted.map((r) => (
               <tr key={key(r.reviewerId, r.code)}>
                 <td className="px-3 py-2 font-medium">
-                  <a className="text-blue-700 hover:underline" href={`/api/pdf/${r.code}`}>{r.code}</a>
+                  <Overlay href={`/api/pdf/${r.code}`} title={`Submission ${r.code}`}>{r.code}</Overlay>
                 </td>
-                <td className="px-3 py-2">{authors[r.code] ?? ''}</td>
+                <td className="px-3 py-2">
+                  {authors[r.code] ? (
+                    <Overlay href={`/api/cv/${r.code}`} title={`${authors[r.code]}, CV`}>{authors[r.code]}</Overlay>
+                  ) : (
+                    ''
+                  )}
+                </td>
                 <td className="px-3 py-2">{r.reviewer?.name ?? r.reviewerId}</td>
                 <td className="px-3 py-2">
                   {r.review ? (
-                    <a className="text-blue-700 hover:underline" href={`/admin/review/${r.code}/${r.reviewerId}`}>
+                    <Overlay
+                      href={`/embed/review/${r.code}/${r.reviewerId}`}
+                      openHref={`/admin/review/${r.code}/${r.reviewerId}`}
+                      title={`Review of ${r.code} by ${r.reviewer?.name ?? r.reviewerId}`}
+                    >
                       {r.review.status}
-                    </a>
+                    </Overlay>
                   ) : (
                     'not started'
                   )}

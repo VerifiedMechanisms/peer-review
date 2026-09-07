@@ -9,12 +9,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+import Chrome from '@/components/Chrome';
 import { ISSUES_URL } from '@/lib/config';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-zinc-50 text-zinc-900 antialiased">
+        <Chrome>
         <header className="border-b border-zinc-200 bg-white">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
             <Link href="/" className="font-semibold tracking-tight">
@@ -30,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
+        </Chrome>
         <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+        <Chrome>
         <footer className="mx-auto max-w-7xl px-4 py-8 text-xs text-zinc-500">
           Questions: hiring@verifiedmechanisms.ai. This page was vibe coded with Claude. It is expected that you may
           face some issues, so feel free to{' '}
@@ -39,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </a>{' '}
           if you have problems or would like some features.
         </footer>
+        </Chrome>
       </body>
     </html>
   );

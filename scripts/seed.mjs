@@ -2,7 +2,7 @@
 // Upload the reviewer roster, submissions, assignments and redacted PDFs to the
 // private Blob store. Run from the project root with the Blob token in the env:
 //
-//   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>] [<dir with CODE.zip files>]
+//   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>] [<dir with CODE.zip files>] [<dir with CODE.pdf CVs>]
 //
 // seed.json: { reviewers: [{id,name,email,role,token}], submissions: [{code,role}],
 //              assignments: [{reviewerId,code}], authors: {code: name} }
@@ -12,7 +12,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { put } from '@vercel/blob';
 
-const [seedPath, pdfDir, zipDir] = process.argv.slice(2);
+const [seedPath, pdfDir, zipDir, cvDir] = process.argv.slice(2);
 if (!seedPath) {
   console.error('usage: node --env-file=.env.local scripts/seed.mjs <seed.json> [<pdf dir>] [<zip dir>]');
   process.exit(2);
@@ -68,6 +68,17 @@ if (zipDir) {
   }
   await put('data/code.json', JSON.stringify(manifest, null, 1), { ...opts, contentType: 'application/json' });
   console.log(`data/code.json  ${files.length} zips`);
+}
+
+if (cvDir) {
+  // Authors' CVs for the admin pages only (cv/<CODE>.pdf); reviewers cannot reach /api/cv.
+  const codes = new Set(seed.submissions.map((s) => s.code));
+  const files = (await readdir(cvDir)).filter((f) => f.endsWith('.pdf') && codes.has(f.slice(0, -4)));
+  for (const f of files) {
+    const body = await readFile(join(cvDir, f));
+    await put(`cv/${f}`, body, { ...opts, contentType: 'application/pdf' });
+    console.log(`cv/${f}  ${(body.length / 1024).toFixed(0)} KB (admin only)`);
+  }
 }
 
 // No closing list() of the store: Blob listing was taking a minute or more on
