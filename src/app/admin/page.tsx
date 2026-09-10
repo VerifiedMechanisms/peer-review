@@ -1,64 +1,16 @@
 import { redirect } from 'next/navigation';
-import Overlay from '@/components/Overlay';
+import ProgressTable from '@/components/ProgressTable';
 import Tabs from '@/components/Tabs';
 import { isAdmin } from '@/lib/auth';
-import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Assignment, type Review, type Reviewer, type Submission } from '@/lib/store';
+import { SORT_KEYS, defaultDir, type ProgressRow, type SortDir, type SortKey } from '@/lib/progress';
+import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Review } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-type Row = Assignment & { reviewer?: Reviewer; review?: Review };
 // Answers are stored as the option text ("Good: Answers the task, ..." and "3: good");
 // the table shows the word for the overall verdict and the number for the scales.
-const verdict = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
-const score = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
+const head = (v: unknown) => (v === undefined || v === null ? '' : String(v).split(':')[0].trim());
 
-// Sorting: ?sort=<column>&dir=asc|desc. Score columns default to highest first, the
-// text columns to A-Z; rows without a value sort last either way.
-const SORT_KEYS = ['code', 'name', 'reviewer', 'status', 'overall', 'quality', 'clarity', 'originality'] as const;
-type SortKey = (typeof SORT_KEYS)[number];
-const SCORE_KEYS: SortKey[] = ['overall', 'quality', 'clarity', 'originality'];
-const VERDICT_RANK: Record<string, number> = { Excellent: 3, Good: 2, Satisfactory: 1 };
-const STATUS_RANK: Record<string, number> = { submitted: 2, draft: 1 };
-
-function sortRows(rows: Row[], key: SortKey, dir: 'asc' | 'desc', authors: Record<string, string>): Row[] {
-  const num = (r: Row): number | null => {
-    const a = r.review?.answers ?? {};
-    if (key === 'overall') return VERDICT_RANK[verdict(a.overall_score)] ?? null;
-    if (key === 'status') return STATUS_RANK[r.review?.status ?? ''] ?? 0;
-    const v = score(a[key]);
-    return v === '' ? null : Number(v);
-  };
-  const text = (r: Row): string =>
-    key === 'code' ? r.code : key === 'name' ? (authors[r.code] ?? '') : (r.reviewer?.name ?? r.reviewerId);
-  const sign = dir === 'asc' ? 1 : -1;
-  return rows.slice().sort((x, y) => {
-    if (SCORE_KEYS.includes(key) || key === 'status') {
-      const a = num(x), b = num(y);
-      if (a === null && b === null) return x.code.localeCompare(y.code);
-      if (a === null) return 1;
-      if (b === null) return -1;
-      return sign * (a - b) || x.code.localeCompare(y.code);
-    }
-    return sign * text(x).localeCompare(text(y)) || x.code.localeCompare(y.code);
-  });
-}
-const key = (rid: string, code: string) => `${rid}/${code}`;
-
-// Sortable column header. Clicking the active column flips the direction; any other
-// column starts from its default. The link carries the track so the reload opens on
-// the same tab.
-function Head({ k, label, role, sortKey, dir }: { k: SortKey; label: string; role: string; sortKey: SortKey; dir: 'asc' | 'desc' }) {
-  const active = k === sortKey;
-  const nextDir = active ? (dir === 'asc' ? 'desc' : 'asc') : SCORE_KEYS.includes(k) || k === 'status' ? 'desc' : 'asc';
-  return (
-    <th className="px-3 py-2">
-      <a className={active ? 'text-zinc-900 hover:underline' : 'hover:underline'} href={`/admin?track=${role}&sort=${k}&dir=${nextDir}`}>
-        {label}
-        {active && <span aria-hidden="true">{dir === 'asc' ? ' \u25B4' : ' \u25BE'}</span>}
-      </a>
-    </th>
-  );
-}
 const TRACKS = [
   { role: 'RS', title: 'Research Scientist' },
   { role: 'RE', title: 'Research Engineer' },
@@ -67,14 +19,15 @@ type TrackRole = (typeof TRACKS)[number]['role'];
 
 export default async function Admin({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!(await isAdmin())) redirect('/?error=signin');
+  // ?track=RS|RE, ?sort=<column>&dir=asc|desc: the page opens in that state, and the tabs
+  // and table keep the URL updated as the admin clicks, without reloading.
   const sp = await searchParams;
   const sortParam = typeof sp.sort === 'string' ? sp.sort : '';
   const sortKey: SortKey = (SORT_KEYS as readonly string[]).includes(sortParam) ? (sortParam as SortKey) : 'code';
-  const defaultDir: 'asc' | 'desc' = SCORE_KEYS.includes(sortKey) || sortKey === 'status' ? 'desc' : 'asc';
-  const dir: 'asc' | 'desc' = sp.dir === 'asc' || sp.dir === 'desc' ? sp.dir : defaultDir;
-  // One track at a time, as on the applicant-review dashboard: ?track=RS|RE, RS by default.
+  const dir: SortDir = sp.dir === 'asc' || sp.dir === 'desc' ? sp.dir : defaultDir(sortKey);
   const trackParam = typeof sp.track === 'string' ? sp.track.toUpperCase() : '';
   const track: TrackRole = TRACKS.some((t) => t.role === trackParam) ? (trackParam as TrackRole) : 'RS';
+
   const [reviewers, submissions, assignments, reviews, authors] = await Promise.all([
     getReviewers(),
     getSubmissions(),
@@ -83,13 +36,25 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
     getAuthors(),
   ]);
   const byReviewer = new Map(reviewers.map((r) => [r.id, r]));
-  const byKey = new Map(reviews.map((r) => [key(r.reviewerId, r.code), r]));
+  const byKey = new Map<string, Review>(reviews.map((r) => [`${r.reviewerId}/${r.code}`, r]));
   const roleOf = new Map(submissions.map((s) => [s.code, s.role]));
-  const rows: Row[] = assignments
-    .map((a) => ({ ...a, reviewer: byReviewer.get(a.reviewerId), review: byKey.get(key(a.reviewerId, a.code)) }))
-    .sort((x, y) => x.code.localeCompare(y.code));
-  const submitted = rows.filter((r) => r.review?.status === 'submitted').length;
-  const drafts = rows.filter((r) => r.review?.status === 'draft').length;
+  const rows: ProgressRow[] = assignments.map((a) => {
+    const review = byKey.get(`${a.reviewerId}/${a.code}`);
+    const answers = review?.answers ?? {};
+    return {
+      code: a.code,
+      name: authors[a.code] ?? '',
+      reviewerId: a.reviewerId,
+      reviewer: byReviewer.get(a.reviewerId)?.name ?? a.reviewerId,
+      status: review?.status ?? null,
+      overall: head(answers.overall_score),
+      quality: head(answers.quality),
+      clarity: head(answers.clarity),
+      originality: head(answers.originality),
+    };
+  });
+  const submitted = rows.filter((r) => r.status === 'submitted').length;
+  const drafts = rows.filter((r) => r.status === 'draft').length;
 
   return (
     <div className="space-y-8">
@@ -106,127 +71,28 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
       <Tabs
         label="Tracks"
         initial={track}
-        tabs={TRACKS.map((t) => ({
-          id: t.role,
-          label: t.title,
-          count: submissions.filter((s) => s.role === t.role).length,
-          content: (
-            <TrackSection
-              role={t.role}
-              rows={rows.filter((r) => roleOf.get(r.code) === t.role)}
-              submissions={submissions.filter((s) => s.role === t.role)}
-              reviewers={reviewers.filter((r) => r.role === t.role)}
-              assignments={assignments}
-              authors={authors}
-              sortKey={sortKey}
-              dir={dir}
-            />
-          ),
-        }))}
+        tabs={TRACKS.map((t) => {
+          const trackRows = rows.filter((r) => roleOf.get(r.code) === t.role);
+          const trackSubmissions = submissions.filter((s) => s.role === t.role);
+          const done = trackRows.filter((r) => r.status === 'submitted').length;
+          const inDraft = trackRows.filter((r) => r.status === 'draft').length;
+          const unassigned = trackSubmissions.filter((s) => !assignments.some((a) => a.code === s.code));
+          return {
+            id: t.role,
+            label: t.title,
+            count: trackSubmissions.length,
+            content: (
+              <section className="space-y-3">
+                <p className="text-sm text-zinc-600">
+                  {trackSubmissions.length} submissions, {done} of {trackRows.length} reviews submitted, {inDraft} in draft
+                  {unassigned.length > 0 && <>, no reviewer yet: {unassigned.map((s) => s.code).join(', ')}</>}
+                </p>
+                <ProgressTable rows={trackRows} initialSort={sortKey} initialDir={dir} />
+              </section>
+            ),
+          };
+        })}
       />
     </div>
-  );
-}
-
-function TrackSection({
-  role,
-  rows,
-  submissions,
-  reviewers,
-  assignments,
-  authors,
-  sortKey,
-  dir,
-}: {
-  role: TrackRole;
-  rows: Row[];
-  submissions: Submission[];
-  reviewers: Reviewer[];
-  assignments: Assignment[];
-  authors: Record<string, string>;
-  sortKey: SortKey;
-  dir: 'asc' | 'desc';
-}) {
-  const sorted = sortRows(rows, sortKey, dir, authors);
-  const head = { role, sortKey, dir };
-  const submitted = rows.filter((r) => r.review?.status === 'submitted').length;
-  const drafts = rows.filter((r) => r.review?.status === 'draft').length;
-  const unassigned = submissions.filter((s) => !assignments.some((a) => a.code === s.code));
-  return (
-    <section className="space-y-3">
-      <p className="text-sm text-zinc-600">
-        {submissions.length} submissions, {submitted} of {rows.length} reviews submitted, {drafts} in draft
-        {unassigned.length > 0 && <>, no reviewer yet: {unassigned.map((s) => s.code).join(', ')}</>}
-      </p>
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <Head k="code" label="Code" {...head} />
-              <Head k="name" label="Name" {...head} />
-              <Head k="reviewer" label="Reviewer" {...head} />
-              <Head k="status" label="Status" {...head} />
-              <Head k="overall" label="Overall" {...head} />
-              <Head k="quality" label="Quality" {...head} />
-              <Head k="clarity" label="Clarity" {...head} />
-              <Head k="originality" label="Originality" {...head} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {sorted.map((r) => (
-              <tr key={key(r.reviewerId, r.code)}>
-                <td className="px-3 py-2 font-medium">
-                  <Overlay href={`/api/pdf/${r.code}`} title={`Submission ${r.code}`}>{r.code}</Overlay>
-                </td>
-                <td className="px-3 py-2">
-                  {authors[r.code] ? (
-                    <Overlay href={`/api/cv/${r.code}`} title={`${authors[r.code]}, CV`}>{authors[r.code]}</Overlay>
-                  ) : (
-                    ''
-                  )}
-                </td>
-                <td className="px-3 py-2">{r.reviewer?.name ?? r.reviewerId}</td>
-                <td className="px-3 py-2">
-                  {r.review ? (
-                    <Overlay
-                      href={`/embed/review/${r.code}/${r.reviewerId}`}
-                      openHref={`/admin/review/${r.code}/${r.reviewerId}`}
-                      title={`Review of ${r.code} by ${r.reviewer?.name ?? r.reviewerId}`}
-                    >
-                      {r.review.status}
-                    </Overlay>
-                  ) : (
-                    'not started'
-                  )}
-                </td>
-                <td className="px-3 py-2">{verdict(r.review?.answers.overall_score)}</td>
-                <td className="px-3 py-2">{score(r.review?.answers.quality)}</td>
-                <td className="px-3 py-2">{score(r.review?.answers.clarity)}</td>
-                <td className="px-3 py-2">{score(r.review?.answers.originality)}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td className="px-3 py-3 text-zinc-500" colSpan={8}>No assignments yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <h3 className="text-sm font-semibold text-zinc-700">Reviewers</h3>
-      <ul className="grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
-        {reviewers.map((r) => {
-          const n = assignments.filter((a) => a.reviewerId === r.id).length;
-          if (n === 0) return null; // reviewers in the roster with nothing assigned would show as 0/0
-          const done = rows.filter((x) => x.reviewerId === r.id && x.review?.status === 'submitted').length;
-          return (
-            <li key={r.id} className="rounded-md border border-zinc-200 bg-white px-3 py-2">
-              <span className="font-medium">{r.name}</span>
-              <span className="float-right text-zinc-600">{done}/{n}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
