@@ -3,7 +3,7 @@ import ProgressTable from '@/components/ProgressTable';
 import Tabs from '@/components/Tabs';
 import { isAdmin } from '@/lib/auth';
 import { SORT_KEYS, defaultDir, type ProgressRow, type SortDir, type SortKey } from '@/lib/progress';
-import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Review } from '@/lib/store';
+import { getAssignments, getAuthors, getRanks, getReviewers, getSubmissions, listReviews, type Review } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,12 +28,13 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
   const trackParam = typeof sp.track === 'string' ? sp.track.toUpperCase() : '';
   const track: TrackRole = TRACKS.some((t) => t.role === trackParam) ? (trackParam as TrackRole) : 'RS';
 
-  const [reviewers, submissions, assignments, reviews, authors] = await Promise.all([
+  const [reviewers, submissions, assignments, reviews, authors, ranking] = await Promise.all([
     getReviewers(),
     getSubmissions(),
     getAssignments(),
     listReviews(),
     getAuthors(),
+    getRanks(),
   ]);
   const byReviewer = new Map(reviewers.map((r) => [r.id, r]));
   const byKey = new Map<string, Review>(reviews.map((r) => [`${r.reviewerId}/${r.code}`, r]));
@@ -51,6 +52,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
       quality: head(answers.quality),
       clarity: head(answers.clarity),
       originality: head(answers.originality),
+      rank: ranking?.ranks[a.code] ?? null,
     };
   });
   const submitted = rows.filter((r) => r.status === 'submitted').length;
@@ -87,7 +89,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
                   {trackSubmissions.length} submissions, {done} of {trackRows.length} reviews submitted, {inDraft} in draft
                   {unassigned.length > 0 && <>, no reviewer yet: {unassigned.map((s) => s.code).join(', ')}</>}
                 </p>
-                <ProgressTable rows={trackRows} initialSort={sortKey} initialDir={dir} />
+                <ProgressTable rows={trackRows} initialSort={sortKey} initialDir={dir} rankLabel={ranking?.label} />
               </section>
             ),
           };

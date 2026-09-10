@@ -5,7 +5,8 @@
 //   node --env-file=.env.local scripts/seed.mjs <seed.json> [<dir with CODE.pdf files>] [<dir with CODE.zip files>] [<dir with CODE.pdf CVs>]
 //
 // seed.json: { reviewers: [{id,name,email,role,token}], submissions: [{code,role}],
-//              assignments: [{reviewerId,code}], authors: {code: name} }
+//              assignments: [{reviewerId,code}], authors: {code: name},
+//              ranks?: {label, ranks: {code: rank}} }
 // authors is read only by the admin pages (data/authors.json); reviewers never see it.
 // The seed file and the PDF directory live outside this repository.
 import { readFile, readdir } from 'node:fs/promises';
@@ -41,6 +42,12 @@ for (const [name, data] of [
 if (seed.authors) {
   await put('data/authors.json', JSON.stringify(seed.authors, null, 1), { ...opts, contentType: 'application/json' });
   console.log(`data/authors.json  ${Object.keys(seed.authors).length} codes (admin only)`);
+}
+// A ranking of the write-ups by a member of the hiring team, also admin only:
+// { label: 'Nayara', ranks: { 'RS-12': 1, ... } } becomes a column on /admin.
+if (seed.ranks) {
+  await put('data/ranks.json', JSON.stringify(seed.ranks, null, 1), { ...opts, contentType: 'application/json' });
+  console.log(`data/ranks.json  ${Object.keys(seed.ranks.ranks).length} codes (admin only)`);
 }
 
 if (pdfDir) {

@@ -116,6 +116,14 @@ export async function getAuthors(): Promise<Record<string, string>> {
   return (await readJson<Record<string, string>>('data/authors.json')) ?? {};
 }
 
+// A ranking of the write-ups by a member of the hiring team, admin-only like the authors
+// (added 10 Sep 2026): data/ranks.json = { label: 'Nayara', ranks: { 'RS-12': 1, ... } }.
+// Absent until seeded; the admin table then shows no rank column.
+export type Ranking = { label: string; ranks: Record<string, number> };
+export async function getRanks(): Promise<Ranking | null> {
+  return readJson<Ranking>('data/ranks.json');
+}
+
 // Anonymized code snapshots exist only for some submissions (the RE track);
 // data/code.json maps code -> zip size in bytes for the ones that have one.
 export async function getCodeManifest(): Promise<Record<string, number>> {
