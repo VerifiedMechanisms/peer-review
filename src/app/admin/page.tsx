@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Overlay from '@/components/Overlay';
+import Tabs from '@/components/Tabs';
 import { isAdmin } from '@/lib/auth';
 import { getAssignments, getAuthors, getReviewers, getSubmissions, listReviews, type Assignment, type Review, type Reviewer, type Submission } from '@/lib/store';
 
@@ -42,10 +43,27 @@ function sortRows(rows: Row[], key: SortKey, dir: 'asc' | 'desc', authors: Recor
   });
 }
 const key = (rid: string, code: string) => `${rid}/${code}`;
+
+// Sortable column header. Clicking the active column flips the direction; any other
+// column starts from its default. The link carries the track so the reload opens on
+// the same tab.
+function Head({ k, label, role, sortKey, dir }: { k: SortKey; label: string; role: string; sortKey: SortKey; dir: 'asc' | 'desc' }) {
+  const active = k === sortKey;
+  const nextDir = active ? (dir === 'asc' ? 'desc' : 'asc') : SCORE_KEYS.includes(k) || k === 'status' ? 'desc' : 'asc';
+  return (
+    <th className="px-3 py-2">
+      <a className={active ? 'text-zinc-900 hover:underline' : 'hover:underline'} href={`/admin?track=${role}&sort=${k}&dir=${nextDir}`}>
+        {label}
+        {active && <span aria-hidden="true">{dir === 'asc' ? ' \u25B4' : ' \u25BE'}</span>}
+      </a>
+    </th>
+  );
+}
 const TRACKS = [
   { role: 'RS', title: 'Research Scientist' },
   { role: 'RE', title: 'Research Engineer' },
 ] as const;
+type TrackRole = (typeof TRACKS)[number]['role'];
 
 export default async function Admin({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!(await isAdmin())) redirect('/?error=signin');
@@ -54,6 +72,9 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
   const sortKey: SortKey = (SORT_KEYS as readonly string[]).includes(sortParam) ? (sortParam as SortKey) : 'code';
   const defaultDir: 'asc' | 'desc' = SCORE_KEYS.includes(sortKey) || sortKey === 'status' ? 'desc' : 'asc';
   const dir: 'asc' | 'desc' = sp.dir === 'asc' || sp.dir === 'desc' ? sp.dir : defaultDir;
+  // One track at a time, as on the applicant-review dashboard: ?track=RS|RE, RS by default.
+  const trackParam = typeof sp.track === 'string' ? sp.track.toUpperCase() : '';
+  const track: TrackRole = TRACKS.some((t) => t.role === trackParam) ? (trackParam as TrackRole) : 'RS';
   const [reviewers, submissions, assignments, reviews, authors] = await Promise.all([
     getReviewers(),
     getSubmissions(),
@@ -82,25 +103,33 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Re
       <p className="text-zinc-700">
         {submitted} of {rows.length} reviews submitted, {drafts} in draft, {rows.length - submitted - drafts} not started.
       </p>
-      {TRACKS.map((t) => (
-        <TrackSection
-          key={t.role}
-          title={t.title}
-          rows={rows.filter((r) => roleOf.get(r.code) === t.role)}
-          submissions={submissions.filter((s) => s.role === t.role)}
-          reviewers={reviewers.filter((r) => r.role === t.role)}
-          assignments={assignments}
-          authors={authors}
-          sortKey={sortKey}
-          dir={dir}
-        />
-      ))}
+      <Tabs
+        label="Tracks"
+        initial={track}
+        tabs={TRACKS.map((t) => ({
+          id: t.role,
+          label: t.title,
+          count: submissions.filter((s) => s.role === t.role).length,
+          content: (
+            <TrackSection
+              role={t.role}
+              rows={rows.filter((r) => roleOf.get(r.code) === t.role)}
+              submissions={submissions.filter((s) => s.role === t.role)}
+              reviewers={reviewers.filter((r) => r.role === t.role)}
+              assignments={assignments}
+              authors={authors}
+              sortKey={sortKey}
+              dir={dir}
+            />
+          ),
+        }))}
+      />
     </div>
   );
 }
 
 function TrackSection({
-  title,
+  role,
   rows,
   submissions,
   reviewers,
@@ -109,7 +138,7 @@ function TrackSection({
   sortKey,
   dir,
 }: {
-  title: string;
+  role: TrackRole;
   rows: Row[];
   submissions: Submission[];
   reviewers: Reviewer[];
@@ -119,43 +148,28 @@ function TrackSection({
   dir: 'asc' | 'desc';
 }) {
   const sorted = sortRows(rows, sortKey, dir, authors);
-  // Clicking the active column flips the direction; any other column starts from its default.
-  const Head = ({ k, label }: { k: SortKey; label: string }) => {
-    const active = k === sortKey;
-    const nextDir = active ? (dir === 'asc' ? 'desc' : 'asc') : SCORE_KEYS.includes(k) || k === 'status' ? 'desc' : 'asc';
-    return (
-      <th className="px-3 py-2">
-        <a className={active ? 'text-zinc-900 hover:underline' : 'hover:underline'} href={`/admin?sort=${k}&dir=${nextDir}`}>
-          {label}
-          {active && <span aria-hidden="true">{dir === 'asc' ? ' \u25B4' : ' \u25BE'}</span>}
-        </a>
-      </th>
-    );
-  };
+  const head = { role, sortKey, dir };
   const submitted = rows.filter((r) => r.review?.status === 'submitted').length;
   const drafts = rows.filter((r) => r.review?.status === 'draft').length;
   const unassigned = submissions.filter((s) => !assignments.some((a) => a.code === s.code));
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <span className="text-sm text-zinc-600">
-          {submissions.length} submissions, {submitted} of {rows.length} reviews submitted, {drafts} in draft
-          {unassigned.length > 0 && <>, no reviewer yet: {unassigned.map((s) => s.code).join(', ')}</>}
-        </span>
-      </div>
+      <p className="text-sm text-zinc-600">
+        {submissions.length} submissions, {submitted} of {rows.length} reviews submitted, {drafts} in draft
+        {unassigned.length > 0 && <>, no reviewer yet: {unassigned.map((s) => s.code).join(', ')}</>}
+      </p>
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
-              <Head k="code" label="Code" />
-              <Head k="name" label="Name" />
-              <Head k="reviewer" label="Reviewer" />
-              <Head k="status" label="Status" />
-              <Head k="overall" label="Overall" />
-              <Head k="quality" label="Quality" />
-              <Head k="clarity" label="Clarity" />
-              <Head k="originality" label="Originality" />
+              <Head k="code" label="Code" {...head} />
+              <Head k="name" label="Name" {...head} />
+              <Head k="reviewer" label="Reviewer" {...head} />
+              <Head k="status" label="Status" {...head} />
+              <Head k="overall" label="Overall" {...head} />
+              <Head k="quality" label="Quality" {...head} />
+              <Head k="clarity" label="Clarity" {...head} />
+              <Head k="originality" label="Originality" {...head} />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
